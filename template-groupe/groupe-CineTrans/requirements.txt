@@ -1,0 +1,7 @@
+# Ajoutez ici les bibliothèques Python du projet (une par ligne), puis : docker compose build
+--extra-index-url https://download.pytorch.org/whl/cpu
+whisperx==3.3.4
+omegaconf  # requis par pyannote pour charger ses checkpoints (non tiré par whisperx)
+transformers>=4.40,<5
+ffmpeg-python
+flask

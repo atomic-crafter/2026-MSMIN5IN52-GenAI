@@ -1,0 +1,8 @@
+.env
+.vscode
+.DS_Store
+__pycache__
+*.wav
+outputs/
+uploads/
+outputs/

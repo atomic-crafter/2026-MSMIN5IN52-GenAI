@@ -1,0 +1,25 @@
+# `docker compose up --build`  puis ouvrir http://localhost:8000  (Windows, macOS, Linux)
+# `docker compose --profile cli run --rm transcribe` -> pipeline en ligne de commande, sans interface
+services:
+  web:
+    build: .
+    env_file: .env
+    ports:
+      - "127.0.0.1:8000:8000"       # accessible uniquement depuis votre machine
+    volumes:
+      - .:/app                      # code + uploads/ + outputs/
+      - model-cache:/root/.cache    # modèles Whisper / Hugging Face téléchargés une seule fois
+    command: python app.py
+
+  transcribe:
+    build: .
+    profiles: ["cli"]
+    env_file: .env
+    volumes:
+      - .:/app
+      - model-cache:/root/.cache
+    command: python extractsrt.py --out-dir outputs
+    # Ajoutez ici les services suivants (translate, tts…) avec le même build.
+
+volumes:
+  model-cache:
