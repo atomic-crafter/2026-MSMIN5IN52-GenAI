@@ -1,7 +1,11 @@
 # Ajoutez ici les bibliothèques Python du projet (une par ligne), puis : docker compose build
 --extra-index-url https://download.pytorch.org/whl/cpu
 whisperx==3.3.4
+pyannote.audio==3.3.2  # whisperx 3.3.x casse avec pyannote 4 (use_auth_token supprimé)
+torch<2.9  # pyannote 3.3.2 utilise des API torchaudio retirées en 2.9
+torchaudio<2.9
 omegaconf  # requis par pyannote pour charger ses checkpoints (non tiré par whisperx)
 transformers>=4.40,<5
 ffmpeg-python
 flask
+matplotlib

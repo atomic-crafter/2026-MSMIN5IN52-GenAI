@@ -22,12 +22,25 @@ from pathlib import Path
 import ffmpeg  # paquet pip : ffmpeg-python (pas "ffmpeg")
 import torch
 import whisperx
+from whisperx.diarize import DiarizationPipeline
 from transformers import pipeline as hf_pipeline
 
-WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")  # base, small, medium, large-v3…
-EMOTION_MODEL = os.getenv(
-    "EMOTION_MODEL", "ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition"
-)
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "large-v3")  # tiny, base, small, medium, large-v3-turbo, large-v3
+# Niveau d'émotion -> modèle (de plus en plus lourd). EMOTION_MODEL force un modèle précis.
+EMOTION_MODELS = {
+    1: "superb/wav2vec2-base-superb-er",  # ~95M params, 4 émotions
+    2: "ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition",  # ~316M, 8 émotions
+    3: "firdhokk/speech-emotion-recognition-with-openai-whisper-large-v3",  # ~637M, 7 émotions
+}
+EMOTION_LABELS = {  # harmonise les étiquettes entre modèles
+    "neu": "neutral", "hap": "happy", "ang": "angry", "fear": "fearful",
+    "surprise": "surprised",
+}
+# Sensibilité de séparation des voix (1 = fusionne plus, 5 = sépare plus) -> seuil de clustering
+SPEAKER_THRESHOLDS = {1: 0.85, 2: 0.70, 3: 0.58, 4: 0.46, 5: 0.35}
+# pyannote 3.1 fixe min_cluster_size=12 (pensé pour de longs enregistrements) : sur un dialogue
+# court, une voix qui parle peu est absorbée par la plus bavarde. On l'abaisse.
+MIN_CLUSTER_SIZE = 4
 HF_TOKEN = os.getenv("HF_TOKEN")
 SAMPLE_RATE = 16000
 MIN_EMOTION_SECONDS = 0.5  # en dessous, le modèle d'émotion n'est pas fiable
@@ -35,12 +48,15 @@ MIN_LANG_SECONDS = 1.0  # en dessous, la détection de langue n'est pas fiable
 
 
 def extract_audio(video_path, wav_path):
-    (
-        ffmpeg.input(str(video_path))
-        .output(str(wav_path), ac=1, ar=SAMPLE_RATE)
-        .overwrite_output()
-        .run(quiet=True)
-    )
+    try:
+        (
+            ffmpeg.input(str(video_path))
+            .output(str(wav_path), ac=1, ar=SAMPLE_RATE)
+            .overwrite_output()
+            .run(quiet=True)
+        )
+    except ffmpeg.Error as e:
+        raise SystemExit(f"ffmpeg a échoué :\n{e.stderr.decode(errors='replace')}")
 
 
 def format_timestamp(seconds):
@@ -95,6 +111,10 @@ def transcribe_multilingual(model, audio, aligner):
             continue
         last_language = model.detect_language(chunk)
         sub = model.transcribe(chunk, batch_size=8, language=last_language)["segments"]
+        if not sub:  # la 2e passe n'a rien trouvé : on garde le texte de la 1re passe
+            seg["language"] = last_language
+            segments.append(seg)
+            continue
         sub = aligner.align(sub, chunk, last_language)
         for s in sub:  # remet les temps (et ceux des mots) dans le repère global
             s["start"] += seg["start"]
@@ -108,7 +128,59 @@ def transcribe_multilingual(model, audio, aligner):
     return segments
 
 
-def transcribe_and_diarize(wav_path, device, source_lang, multilingual):
+def tune_diarizer(pipe, sensitivity):
+    """Ajuste le clustering de pyannote (seuil + taille minimale de cluster)."""
+    try:
+        params = pipe.parameters(instantiated=True)
+        params["clustering"]["threshold"] = SPEAKER_THRESHOLDS[sensitivity]
+        params["clustering"]["min_cluster_size"] = MIN_CLUSTER_SIZE
+        pipe.instantiate(params)
+    except Exception as e:  # ne jamais bloquer le traitement pour un réglage
+        print(f"  (réglage de la diarisation ignoré : {e})")
+
+
+def split_by_speaker(segments, min_words=2):
+    """Coupe un segment quand le locuteur change au milieu (d'après les mots)."""
+    out = []
+    for seg in segments:
+        words = seg.get("words") or []
+        if len({w["speaker"] for w in words if w.get("speaker")}) < 2:
+            out.append(seg)
+            continue
+        runs = []  # [locuteur, [mots]]
+        for w in words:
+            spk = w.get("speaker") or (runs[-1][0] if runs else seg.get("speaker"))
+            if runs and runs[-1][0] == spk:
+                runs[-1][1].append(w)
+            else:
+                runs.append([spk, [w]])
+        merged = []  # les séries trop courtes (bruit de diarisation) sont absorbées
+        for spk, ws in runs:
+            if merged and (merged[-1][0] == spk or len(ws) < min_words):
+                merged[-1][1].extend(ws)
+            else:
+                merged.append([spk, ws])
+        if len(merged) < 2:
+            out.append(seg)
+            continue
+        sep = "" if seg.get("language") in ("zh", "ja") else " "
+        for spk, ws in merged:
+            starts = [w["start"] for w in ws if "start" in w]
+            ends = [w["end"] for w in ws if "end" in w]
+            out.append({
+                **{k: v for k, v in seg.items() if k != "words"},
+                "text": sep.join(w["word"] for w in ws),
+                "start": starts[0] if starts else seg["start"],
+                "end": ends[-1] if ends else seg["end"],
+                "speaker": spk,
+                "words": ws,
+            })
+    return out
+
+
+def transcribe_and_diarize(wav_path, device, source_lang, multilingual, whisper_model,
+                           num_speakers=None, min_speakers=None, max_speakers=None,
+                           sensitivity=2):
     if not HF_TOKEN:
         raise SystemExit(
             "HF_TOKEN manquant : voir HUGGINGFACE_TOKEN.md (copiez .env.example en .env "
@@ -116,7 +188,7 @@ def transcribe_and_diarize(wav_path, device, source_lang, multilingual):
         )
     audio = whisperx.load_audio(str(wav_path))  # float32, 16 kHz
     compute_type = "float16" if device == "cuda" else "int8"
-    model = whisperx.load_model(WHISPER_MODEL, device, compute_type=compute_type)
+    model = whisperx.load_model(whisper_model, device, compute_type=compute_type)
     aligner = Aligner(device)
 
     if multilingual:
@@ -124,21 +196,28 @@ def transcribe_and_diarize(wav_path, device, source_lang, multilingual):
     else:
         segments = transcribe_single(model, audio, aligner, source_lang)
 
-    diarizer = whisperx.DiarizationPipeline(use_auth_token=HF_TOKEN, device=device)
-    result = whisperx.assign_word_speakers(diarizer(audio), {"segments": segments})
-    return audio, result["segments"]
+    diarizer = DiarizationPipeline(use_auth_token=HF_TOKEN, device=device)
+    tune_diarizer(diarizer.model, sensitivity)
+    diarization = diarizer(
+        audio, num_speakers=num_speakers, min_speakers=min_speakers, max_speakers=max_speakers
+    )
+    print(f"  {diarization['speaker'].nunique()} locuteur(s) détecté(s) par pyannote")
+    result = whisperx.assign_word_speakers(diarization, {"segments": segments}, fill_nearest=True)
+    return audio, split_by_speaker(result["segments"])
 
 
-def detect_emotions(audio, segments, device_id):
-    classifier = hf_pipeline("audio-classification", model=EMOTION_MODEL, device=device_id)
+def detect_emotions(audio, segments, device_id, level):
+    model_name = os.getenv("EMOTION_MODEL") or EMOTION_MODELS[level]
+    print(f"  modèle d'émotion : {model_name}")
+    classifier = hf_pipeline("audio-classification", model=model_name, device=device_id)
     emotions = []
     for seg in segments:
         chunk = audio[int(seg["start"] * SAMPLE_RATE) : int(seg["end"] * SAMPLE_RATE)]
         if len(chunk) < MIN_EMOTION_SECONDS * SAMPLE_RATE:
             emotions.append("neutral")
             continue
-        best = classifier({"raw": chunk, "sampling_rate": SAMPLE_RATE}, top_k=1)[0]
-        emotions.append(best["label"])
+        label = classifier({"raw": chunk, "sampling_rate": SAMPLE_RATE}, top_k=1)[0]["label"]
+        emotions.append(EMOTION_LABELS.get(label.lower(), label.lower()))
     return emotions
 
 
@@ -171,6 +250,14 @@ def main():
         default="",
         help="langues cibles, séparées par des virgules (transmises à l'étape de traduction)",
     )
+    parser.add_argument("--whisper-model", default=WHISPER_MODEL)
+    parser.add_argument("--emotion-level", type=int, choices=[1, 2, 3], default=2,
+                        help="1 léger, 2 standard, 3 précis (plus lourd)")
+    parser.add_argument("--num-speakers", type=int, help="nombre exact de locuteurs, si connu")
+    parser.add_argument("--min-speakers", type=int)
+    parser.add_argument("--max-speakers", type=int)
+    parser.add_argument("--speaker-sensitivity", type=int, choices=[1, 2, 3, 4, 5], default=2,
+                        help="1 fusionne les voix proches, 5 les sépare davantage")
     args = parser.parse_args()
 
     video = Path(args.video)
@@ -184,11 +271,14 @@ def main():
     extract_audio(video, wav)
 
     print("[2/3] Transcription + diarisation (WhisperX)…")
-    audio, raw = transcribe_and_diarize(wav, device, source_lang, args.multilingual)
+    audio, raw = transcribe_and_diarize(
+        wav, device, source_lang, args.multilingual, args.whisper_model,
+        args.num_speakers, args.min_speakers, args.max_speakers, args.speaker_sensitivity,
+    )
     segments = [
         {
-            "start": s["start"],
-            "end": s["end"],
+            "start": float(s["start"]),
+            "end": float(s["end"]),
             "text": s["text"].strip(),
             "speaker": s.get("speaker", "UNKNOWN"),
             "language": s.get("language"),
@@ -198,7 +288,7 @@ def main():
 
     print("[3/3] Détection des émotions…")
     device_id = 0 if device == "cuda" else -1
-    for seg, emotion in zip(segments, detect_emotions(audio, segments, device_id)):
+    for seg, emotion in zip(segments, detect_emotions(audio, segments, device_id, args.emotion_level)):
         seg["emotion"] = emotion
 
     srt.write_text(to_srt(segments, args.multilingual), encoding="utf-8")
@@ -207,6 +297,12 @@ def main():
         "source_language": "multi" if args.multilingual else (source_lang or "auto"),
         "detected_languages": sorted({s["language"] for s in segments if s["language"]}),
         "target_languages": [l for l in args.target_langs.split(",") if l],
+        "settings": {
+            "whisper_model": args.whisper_model,
+            "emotion_level": args.emotion_level,
+            "num_speakers": args.num_speakers,
+            "speaker_sensitivity": args.speaker_sensitivity,
+        },
         "segments": segments,
     }
     js.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")

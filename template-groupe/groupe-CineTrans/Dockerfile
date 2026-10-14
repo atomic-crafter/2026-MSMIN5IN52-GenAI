@@ -1,6 +1,7 @@
 FROM python:3.11-slim
 
-RUN apt-get update \
+RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries \
+    && apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg libsndfile1 git \
     && rm -rf /var/lib/apt/lists/*
 
