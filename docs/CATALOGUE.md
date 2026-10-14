@@ -439,7 +439,7 @@ Router chaque requête vers un modèle selon ses capacités, son coût et son é
 - **Extensions** : circuit breaker, routage appris, cache sémantique.
 - **Faisabilité** : APIs à faible volume ou connecteurs simulés ; budget inférieur à 12 €. Plan B : serveur de réponses déterministes.
 
-**CoursIA** : [Model Merging Routing](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/FineTuning/FT-05-ModelMerging-Routing.ipynb) · [SemanticFleet MultiConnector](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/Integrations-DotNet/Aspire/07-Aspire-SemanticFleet-MultiConnector.ipynb)
+**CoursIA** : [Model Merging Routing](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/FineTuning/FT-05-ModelMerging-Routing-Python.ipynb) · [SemanticFleet MultiConnector](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/Integrations-DotNet/Aspire/07-Aspire-SemanticFleet-MultiConnector.ipynb)
 
 **Références** : [Azure Architecture — Circuit Breaker](https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker) · [OpenTelemetry](https://opentelemetry.io/docs/) · [Polly](https://www.pollydocs.org/)
 
@@ -473,7 +473,7 @@ Créer des analyseurs Roslyn qui interdisent des motifs dangereux ou non conform
 - **Extensions** : taint analysis, configuration par politique, boucle de réparation LLM.
 - **Faisabilité** : .NET uniquement, API facultative, aucun GPU ; budget cible inférieur à 5 €. Plan B : corpus synthétique versionné.
 
-**CoursIA** : [Roslyn Code Guardrails](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/Vibe-Coding/docs/Roslyn-Code-Guardrails.ipynb) · [Aspire GardeFous Roslyn](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/Integrations-DotNet/Aspire/06-Aspire-GardeFous-Roslyn.ipynb) · [CSharpRepl Live Patching](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/Vibe-Coding/docs/CSharpRepl-Live-Patching.ipynb)
+**CoursIA** : [Roslyn Code Guardrails](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/Vibe-Coding/analyzers/Roslyn-Code-Guardrails.ipynb) · [Aspire GardeFous Roslyn](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/Integrations-DotNet/Aspire/06-Aspire-GardeFous-Roslyn.ipynb) · [CSharpRepl Live Patching](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/Vibe-Coding/docs/CSharpRepl-Live-Patching.ipynb)
 
 **Références** : [Roslyn analyzers](https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/tutorials/how-to-write-csharp-analyzer-code-fix) · [Microsoft.CodeAnalysis.Testing](https://www.nuget.org/packages/Microsoft.CodeAnalysis.Analyzer.Testing/) · [CWE Top 25](https://cwe.mitre.org/top25/)
 
@@ -601,7 +601,7 @@ Adapter un petit modèle à une tâche structurée et prouver que le gain ne vie
 - **Extensions** : comparaison RAG, quantification, autre taille de modèle.
 - **Faisabilité** : Colab ou GPU partagé, petit modèle uniquement ; budget cible inférieur à 10 € ; aucun GPU requis pour la démo si l'adapter est sauvegardé. Plan B : entraînement très réduit.
 
-**CoursIA** : [QLoRA Quantization](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/FineTuning/FT-02-QLoRA-Quantization.ipynb) · [Supervised Fine-Tuning](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/FineTuning/FT-03-Supervised-FineTuning-SFT.ipynb) · [LoRA Fine-Tuning](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/Texte/21_LoRA_FineTuning.ipynb)
+**CoursIA** : [QLoRA Quantization](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/FineTuning/FT-02-QLoRA-Quantization-Python.ipynb) · [Supervised Fine-Tuning](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/FineTuning/FT-03-Supervised-FineTuning-SFT-Python.ipynb) · [LoRA Fine-Tuning](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/Texte/21_LoRA_FineTuning.ipynb)
 
 **Références** : [QLoRA](https://arxiv.org/abs/2305.14314) · [PEFT](https://huggingface.co/docs/peft/) · [Data Contamination in LLMs](https://arxiv.org/abs/2311.04850)
 
@@ -646,7 +646,7 @@ Combiner ou router de petits modèles spécialisés sans perdre leurs compétenc
 - **Extensions** : plusieurs méthodes de fusion, routeur appris, quantification.
 - **Faisabilité** : petits modèles et adapters ; GPU partagé recommandé. Plan B : fusion d'adapters pré-entraînés.
 
-**CoursIA** : [Model Merging Routing](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/FineTuning/FT-05-ModelMerging-Routing.ipynb) · [QLoRA Quantization](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/FineTuning/FT-02-QLoRA-Quantization.ipynb)
+**CoursIA** : [Model Merging Routing](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/FineTuning/FT-05-ModelMerging-Routing-Python.ipynb) · [QLoRA Quantization](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/FineTuning/FT-02-QLoRA-Quantization-Python.ipynb)
 
 **Références** : [MergeKit](https://github.com/arcee-ai/mergekit) · [TIES-Merging](https://arxiv.org/abs/2306.01708) · [PEFT](https://huggingface.co/docs/peft/)
 
@@ -714,7 +714,7 @@ Générer des données tabulaires synthétiques et mesurer simultanément utilit
 - **Extensions** : confidentialité différentielle, attributs rares, audit par sous-groupes.
 - **Faisabilité** : données publiques ou artificielles uniquement ; GPU inutile. Plan B : générateurs statistiques.
 
-**CoursIA** : [Structured Outputs](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/Texte/03_Structured_Outputs.ipynb) · [Supervised Fine-Tuning](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/FineTuning/FT-03-Supervised-FineTuning-SFT.ipynb)
+**CoursIA** : [Structured Outputs](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/Texte/03_Structured_Outputs.ipynb) · [Supervised Fine-Tuning](https://github.com/jsboige/CoursIA/blob/main/MyIA.AI.Notebooks/GenAI/FineTuning/FT-03-Supervised-FineTuning-SFT-Python.ipynb)
 
 **Références** : [NIST Privacy Framework](https://www.nist.gov/privacy-framework) · [Membership Inference Attacks](https://arxiv.org/abs/1610.05820) · [SDMetrics](https://docs.sdv.dev/sdmetrics/)
 
