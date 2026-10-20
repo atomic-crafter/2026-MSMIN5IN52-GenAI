@@ -2,7 +2,7 @@ FROM python:3.11-slim-bookworm
 
 RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries \
     && apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg libsndfile1 git pkg-config gcc libc6-dev \
+    && apt-get install -y --no-install-recommends ffmpeg libsndfile1 espeak-ng git pkg-config gcc libc6-dev \
        libavcodec-dev libavformat-dev libavutil-dev libavfilter-dev libswscale-dev libswresample-dev libavdevice-dev \
     && rm -rf /var/lib/apt/lists/*
 

@@ -13,6 +13,6 @@ matplotlib
 av==11.*
 pykokoro
 librosa
-numpy
+numpy<2
 soundfile
 nltk

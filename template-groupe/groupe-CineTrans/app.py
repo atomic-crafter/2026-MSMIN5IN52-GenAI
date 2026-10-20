@@ -1,4 +1,5 @@
-"""Interface web minimale pour extractsrt.py (Flask).
+"""Interface web du pipeline complet (Flask) :
+extractsrt.py (transcription) -> translate_json.py (traduction) -> dubbing.py (vidéo doublée).
 
 docker compose up --build   puis   http://localhost:8000
 Fonctionne à l'identique sur Windows, macOS et Linux : seul un navigateur est nécessaire.
@@ -12,6 +13,8 @@ from pathlib import Path
 
 from flask import Flask, abort, jsonify, request, send_from_directory
 from werkzeug.utils import secure_filename
+
+from dubbing import LANG_MAP as DUBBING_LANGS  # langues pour lesquelles on a une voix Kokoro
 
 BASE = Path(__file__).resolve().parent
 UPLOADS = BASE / "uploads"
@@ -42,23 +45,57 @@ jobs = {}  # id -> {"state": running|done|error, "log": str, "files": [..]}
 run_lock = threading.Lock()  # un seul traitement à la fois (modèles lourds)
 
 
-def run_job(job_id, video, out_dir, args):
+def stream(job, cmd):
+    """Lance une commande, ajoute sa sortie au journal du job, retourne son code de retour."""
+    try:
+        proc = subprocess.Popen(cmd, cwd=BASE, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True)
+        for line in proc.stdout:
+            job["log"] += line
+        return proc.wait()
+    except OSError as e:
+        job["log"] += f"Impossible de lancer le traitement : {e}\n"
+        return 1
+
+
+def run_job(job_id, video, out_dir, args, targets):
     job = jobs[job_id]
     with run_lock:
         job["state"] = "running"
-        cmd = [sys.executable, "-u", "extractsrt.py", "--video", str(video),
-               "--out-dir", str(out_dir), *args]
-        try:
-            proc = subprocess.Popen(cmd, cwd=BASE, stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT, text=True)
-            for line in proc.stdout:
-                job["log"] += line
-            code = proc.wait()
-        except OSError as e:
-            job["log"] += f"Impossible de lancer le traitement : {e}\n"
-            code = 1
-    job["files"] = sorted(p.name for p in out_dir.iterdir() if p.suffix in {".srt", ".json", ".wav"})
+        code = stream(job, [sys.executable, "-u", "extractsrt.py", "--video", str(video),
+                            "--out-dir", str(out_dir), *args])
+        if code == 0 and targets:
+            code = translate_and_dub(job, video, out_dir, targets)
+    job["files"] = sorted(p.name for p in out_dir.iterdir()
+                          if p.suffix in {".srt", ".json", ".wav", ".mp4"}
+                          and not p.name.endswith(".report.json"))
     job["state"] = "done" if code == 0 else "error"
+
+
+def translate_and_dub(job, video, out_dir, targets):
+    source_json = out_dir / f"{video.stem}.json"
+    skipped = [t for t in targets if t not in DUBBING_LANGS]
+    if skipped:
+        job["log"] += f"Pas de voix de synthèse pour : {', '.join(skipped)} (ignoré)\n"
+    targets = [t for t in targets if t in DUBBING_LANGS]
+    if not targets:
+        return 1
+
+    job["log"] += "[4/5] Traduction…\n"
+    for lang in targets:
+        code = stream(job, [sys.executable, "-u", "translate_json.py", str(source_json),
+                            "--target-lang", lang])
+        if code != 0:
+            return code
+
+    job["log"] += "[5/5] Doublage…\n"
+    failed = 0
+    for lang in targets:
+        # le JSON traduit a target_languages = [lang] : dubbing.py ne synthétise que cette langue
+        failed += stream(job, [sys.executable, "-u", "dubbing.py",
+                               str(out_dir / f"segment_{lang}.json"),
+                               "--video", str(video), "--output-dir", str(out_dir)]) != 0
+    return 1 if failed else 0
 
 
 @app.post("/run")
@@ -101,7 +138,7 @@ def run():
     if request.form.get("multilingual"):
         args.append("--multilingual")
     jobs[job_id] = {"state": "queued", "log": "", "files": []}
-    threading.Thread(target=run_job, args=(job_id, video, out_dir, args), daemon=True).start()
+    threading.Thread(target=run_job, args=(job_id, video, out_dir, args, targets), daemon=True).start()
     return jsonify(id=job_id)
 
 
@@ -228,7 +265,7 @@ pre{background:var(--code);color:var(--codeink);padding:14px;border-radius:10px;
 </form>
 
 <div class="card" id="run" style="display:none;margin-top:16px">
- <div class="steps"><div class="step" id="s1">1 · Audio</div><div class="step" id="s2">2 · Texte &amp; locuteurs</div><div class="step" id="s3">3 · Émotions</div></div>
+ <div class="steps"><div class="step" id="s1">1 · Audio</div><div class="step" id="s2">2 · Texte &amp; locuteurs</div><div class="step" id="s3">3 · Émotions</div><div class="step" id="s4">4 · Traduction</div><div class="step" id="s5">5 · Doublage</div></div>
  <div class="status"><span id="state">En attente…</span><span id="timer">0:00</span></div>
  <pre id="log"></pre>
  <div class="files" id="files"></div>
@@ -249,8 +286,8 @@ $('multi').onchange=e=>{if(e.target.checked)$('src').value='auto';$('src').disab
 let timer,t0;
 function tick(){const s=Math.floor((Date.now()-t0)/1000);$('timer').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
 function steps(log){
- const n=[...log.matchAll(/\[(\d)\/3\]/g)].map(m=>+m[1]).pop()||0;
- [1,2,3].forEach(i=>{$('s'+i).className='step'+(i<n?' done':i==n?' on':'')});
+ const n=[...log.matchAll(/\[(\d)\/[35]\]/g)].map(m=>+m[1]).pop()||0;
+ [1,2,3,4,5].forEach(i=>{$('s'+i).className='step'+(i<n?' done':i==n?' on':'')});
  return n;
 }
 $('f').onsubmit=async e=>{
@@ -268,7 +305,7 @@ $('f').onsubmit=async e=>{
   if(s.state=='done'||s.state=='error'){
    clearInterval(poll);clearInterval(timer);$('go').disabled=false;
    if(s.state=='error'){$('state').innerHTML='<span class="err">Erreur — voir le journal</span>'}
-   else{$('state').textContent='Terminé';[1,2,3].forEach(i=>$('s'+i).className='step done')}
+   else{$('state').textContent='Terminé';[1,2,3,4,5].slice(0,fd.getAll('targets').length?5:3).forEach(i=>$('s'+i).className='step done')}
    $('files').innerHTML=s.files.map(n=>`<a href="/download/${j.id}/${n}">${n}</a>`).join('');
   }
  },1500);

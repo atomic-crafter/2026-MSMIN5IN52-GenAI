@@ -26,6 +26,8 @@ from whisperx.diarize import DiarizationPipeline
 from transformers import pipeline as hf_pipeline
 
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "large-v3")  # tiny, base, small, medium, large-v3-turbo, large-v3
+# faster-whisper 1.0.0 (imposé par whisperx 3.2.0) ne connaît pas "large-v3-turbo" : on passe par le dépôt CT2.
+WHISPER_ALIASES = {"large-v3-turbo": "deepdml/faster-whisper-large-v3-turbo-ct2"}
 # Niveau d'émotion -> modèle (de plus en plus lourd). EMOTION_MODEL force un modèle précis.
 EMOTION_MODELS = {
     1: "superb/wav2vec2-base-superb-er",  # ~95M params, 4 émotions
@@ -188,7 +190,7 @@ def transcribe_and_diarize(wav_path, device, source_lang, multilingual, whisper_
         )
     audio = whisperx.load_audio(str(wav_path))  # float32, 16 kHz
     compute_type = "float16" if device == "cuda" else "int8"
-    model = whisperx.load_model(whisper_model, device, compute_type=compute_type)
+    model = whisperx.load_model(WHISPER_ALIASES.get(whisper_model, whisper_model), device, compute_type=compute_type)
     aligner = Aligner(device)
 
     if multilingual:
