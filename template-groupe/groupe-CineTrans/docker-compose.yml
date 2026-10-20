@@ -1,14 +1,16 @@
 # `docker compose up --build`  puis ouvrir http://localhost:8000  (Windows, macOS, Linux)
-# `docker compose --profile cli run --rm transcribe` -> pipeline en ligne de commande, sans interface
+# `docker compose --profile cli run --rm transcribe` -> pipeline en ligne de commande
+# `docker compose --profile cli run --rm translate`   -> traduction des segments
+# `docker compose --profile cli run --rm dubbing`     -> synthèse vocale + vidéo doublée
 services:
   web:
     build: .
     env_file: .env
     ports:
-      - "127.0.0.1:8000:8000"       # accessible uniquement depuis votre machine
+      - "127.0.0.1:8000:8000"
     volumes:
-      - .:/app                      # code + uploads/ + outputs/
-      - model-cache:/root/.cache    # modèles Whisper / Hugging Face téléchargés une seule fois
+      - .:/app
+      - model-cache:/root/.cache
     command: python app.py
 
   transcribe:
@@ -19,7 +21,22 @@ services:
       - .:/app
       - model-cache:/root/.cache
     command: python extractsrt.py --out-dir outputs
-    # Ajoutez ici les services suivants (translate, tts…) avec le même build.
+
+  translate:
+    build: .
+    profiles: ["cli"]
+    env_file: .env
+    volumes:
+      - .:/app
+    command: python translate_json.py
+
+  dubbing:
+    build: .
+    profiles: ["cli"]
+    env_file: .env
+    volumes:
+      - .:/app
+    command: python dubbing.py
 
 volumes:
   model-cache:
