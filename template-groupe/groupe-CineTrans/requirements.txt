@@ -10,6 +10,7 @@ ffmpeg-python
 flask
 matplotlib
 # Dubbing pipeline (Kokoro TTS)
+av>=12.0.0
 pykokoro
 librosa
 numpy
