@@ -9,3 +9,9 @@ transformers>=4.40,<5
 ffmpeg-python
 flask
 matplotlib
+# Dubbing pipeline (Kokoro TTS)
+pykokoro
+kokoro
+librosa
+numpy
+soundfile
