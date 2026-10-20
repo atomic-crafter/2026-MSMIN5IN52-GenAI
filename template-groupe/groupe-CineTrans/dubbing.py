@@ -192,7 +192,7 @@ def build_track(segments, audios, total_duration):
 def mux(video_path, wav_path, out_path):
     subprocess.run([
         "ffmpeg", "-y", "-i", str(video_path), "-i", str(wav_path),
-        "-map", "0:v", "-map", "1:a",
+        "-map", "0:v:0", "-map", "1:a",
         "-c:v", "copy", "-c:a", "aac", "-shortest", str(out_path)],
         check=True, capture_output=True)
 
