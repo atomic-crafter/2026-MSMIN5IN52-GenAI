@@ -60,7 +60,7 @@ Métriques du catalogue D2, calculées par `evaluate.py` :
 ```bash
 python evaluate.py wer --ref reference.txt --hyp segments.json          # WER
 python evaluate.py der --ref reference.rttm --hyp segments.json         # erreur de diarisation
-python evaluate.py timing --segments segment_fr.json --audio outputs/fr.wav   # décalage temporel
+python evaluate.py timing --segments segment_fr.json --audio fr.wav --placed fr.placed.json   # décalage temporel
 python evaluate.py blind-prepare --system-1 clips_ours --system-2 clips_baseline --out blind
 python evaluate.py blind-score --key blind.key.json --responses r1.csv r2.csv   # écoute à l'aveugle
 ```
