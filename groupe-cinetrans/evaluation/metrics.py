@@ -151,7 +151,11 @@ def timing_offsets(segments, audio, sr, search_margin=0.5):
     rows = []
     for i, seg in enumerate(segments):
         nxt = segments[i + 1]["start"] if i + 1 < len(segments) else len(audio) / sr
-        bounds = speech_bounds(audio, sr, seg["start"] - search_margin, max(seg["end"], nxt))
+        # Ne pas remonter dans le segment précédent : la marge est limitée à la moitié
+        # de l'intervalle qui le sépare de celui-ci.
+        gap = seg["start"] - segments[i - 1]["end"] if i else search_margin
+        margin = min(search_margin, max(gap, 0) / 2)
+        bounds = speech_bounds(audio, sr, seg["start"] - margin, max(seg["end"], nxt))
         if bounds is None:
             rows.append({"index": i, "silent": True})
             continue
@@ -170,4 +174,25 @@ def timing_offsets(segments, audio, sr, search_margin=0.5):
         "p95_abs_start_offset": float(np.percentile(np.abs(start), 95)),
         "mean_end_overrun": float(np.mean(over)),
         "pct_overrun_over_0.2s": float(np.mean(over > 0.2) * 100),
+    }
+
+
+def placement_overruns(segments, placed):
+    """Débordement exact à partir des durées placées par dubbing.py (fichier *.placed.json).
+
+    end_overrun = fin placée - fin cible ; overlap = temps de parole qui empiète sur le segment suivant.
+    Contrairement à timing_offsets, voit aussi les répliques qui se chevauchent.
+    """
+    if len(segments) != len(placed):
+        raise ValueError("segments et durées placées de longueurs différentes")
+    over, overlap = [], []
+    for i, (seg, pl) in enumerate(zip(segments, placed)):
+        over.append(pl["end"] - seg["end"])
+        overlap.append(max(0.0, pl["end"] - segments[i + 1]["start"]) if i + 1 < len(segments) else 0.0)
+    over, overlap = np.array(over), np.array(overlap)
+    return {
+        "mean_end_overrun": float(over.mean()),
+        "pct_overrun_over_0.2s": float(np.mean(over > 0.2) * 100),
+        "pct_overlapping_next": float(np.mean(overlap > 0.0) * 100),
+        "total_overlap_s": float(overlap.sum()),
     }

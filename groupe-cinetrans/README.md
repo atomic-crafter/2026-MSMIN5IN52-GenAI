@@ -65,7 +65,25 @@ python evaluate.py blind-prepare --system-1 clips_ours --system-2 clips_baseline
 python evaluate.py blind-score --key blind.key.json --responses r1.csv r2.csv   # écoute à l'aveugle
 ```
 
-Résultats mesurés face à la baseline : à compléter (aucune mesure réalisée pour l'instant).
+### Baseline
+
+`python dubbing.py segments.json --baseline` : une seule voix pour tous les locuteurs et aucun ajustement de durée (la réplique est posée à son début, quelle que soit sa longueur).
+
+### Résultats mesurés (1 extrait)
+
+Extrait de film anglais de 76 s (41 segments), traduit en français, **un seul extrait et un seul run** : ces chiffres sont indicatifs, pas statistiques. L'extrait est un film commercial utilisé en local uniquement ; il n'est pas versionné.
+
+| Mesure | Avant correction | Pipeline actuel | Baseline |
+|---|---|---|---|
+| Décalage moyen du début de réplique (s, valeur absolue) | 0,31 | **0,06** | 0,05 |
+| Répliques qui débordent de plus de 0,2 s | 46 % | 27 % | 39 % |
+| Répliques qui chevauchent la suivante | — | **0 %** | 24 % (2,1 s au total) |
+| WER aller-retour (Whisper `small` sur la piste doublée vs texte traduit) | — | 0,19 | **0,11** |
+
+- *Avant correction* : la mesure a révélé que Kokoro ajoute ~0,37 s de silence en tête de chaque réplique, soit un retard systématique ; `dubbing.py` supprime désormais ce silence.
+- Le WER aller-retour mesure l'intelligibilité de la voix de synthèse, pas la qualité de la transcription : la référence est le texte traduit, pas une transcription humaine. Le pipeline actuel est **moins intelligible** que la baseline : accélérer et tronquer les répliques pour tenir dans le temps coupe des mots. Compromis à discuter.
+- **Erreur de diarisation : non mesurée.** Aucun locuteur de référence n'est disponible, et sur cet extrait le pipeline n'a détecté qu'un seul locuteur (`SPEAKER_00`) alors que la scène en contient plusieurs et que 2 étaient demandés : le doublage multi-voix n'est donc pas exercé sur cet extrait.
+- **Écoute à l'aveugle : non réalisée** (le dépouillement est prêt, il manque les auditeurs).
 
 ## Limites et plan B
 

@@ -93,6 +93,14 @@ def test_timing_on_time_and_late_and_overrun():
     assert summary["pct_overrun_over_0.2s"] == 50.0
 
 
+def test_timing_adjacent_segments_not_confused_with_previous_speech():
+    # Segments contigus : la parole du premier ne doit pas être comptée comme début du second.
+    segments = [seg(1.0, 2.0), seg(2.02, 3.0)]
+    audio = track_with_tones(5, [(1.0, 2.0), (2.02, 3.0)])
+    rows, _ = metrics.timing_offsets(segments, audio, SR)
+    assert abs(rows[1]["start_offset"]) < 0.03
+
+
 def test_timing_silent_segment_is_reported():
     rows, summary = metrics.timing_offsets([seg(1, 2), seg(4, 5)], track_with_tones(8, [(1, 2)]), SR)
     assert rows[1]["silent"] and summary["silent"] == 1
@@ -153,3 +161,17 @@ def test_cli_wer_and_der(tmp_path, capsys):
     assert json.loads(capsys.readouterr().out)["wer"] == pytest.approx(1 / 3)
     evaluate.main(["der", "--ref", str(hyp), "--hyp", str(hyp)])
     assert json.loads(capsys.readouterr().out)["der"] == pytest.approx(0, abs=1e-6)
+
+
+def test_placement_overruns_and_overlap():
+    segments = [seg(0, 2), seg(2, 4), seg(4, 6)]
+    placed = [{"start": 0, "end": 2.5}, {"start": 2, "end": 3.5}, {"start": 4, "end": 6}]
+    r = metrics.placement_overruns(segments, placed)
+    assert r["pct_overlapping_next"] == pytest.approx(100 / 3)
+    assert r["total_overlap_s"] == pytest.approx(0.5)
+    assert r["mean_end_overrun"] == pytest.approx(0.0)  # +0.5 -0.5 +0
+
+
+def test_placement_overruns_length_mismatch():
+    with pytest.raises(ValueError):
+        metrics.placement_overruns([seg(0, 1)], [])
