@@ -46,11 +46,26 @@ Placer une vidéo libre de droits dans `videos/` (dossier ignoré par git) ou l'
 
 ## Tests
 
-À compléter.
+```bash
+pip install pytest numpy soundfile
+python -m pytest tests
+```
+
+Les tests couvrent les métriques d'évaluation (WER, erreur de diarisation, décalage temporel, écoute à l'aveugle) sur des données synthétiques, y compris les cas d'échec (référence vide, réponse invalide, aucun clip commun, segment muet). Ils ne lancent ni Whisper ni Kokoro.
 
 ## Résultats et évaluation
 
-À compléter : baseline, protocole, WER, erreur de diarisation, décalage temporel, écoute à l'aveugle.
+Métriques du catalogue D2, calculées par `evaluate.py` :
+
+```bash
+python evaluate.py wer --ref reference.txt --hyp segments.json          # WER
+python evaluate.py der --ref reference.rttm --hyp segments.json         # erreur de diarisation
+python evaluate.py timing --segments segment_fr.json --audio outputs/fr.wav   # décalage temporel
+python evaluate.py blind-prepare --system-1 clips_ours --system-2 clips_baseline --out blind
+python evaluate.py blind-score --key blind.key.json --responses r1.csv r2.csv   # écoute à l'aveugle
+```
+
+Résultats mesurés face à la baseline : à compléter (aucune mesure réalisée pour l'instant).
 
 ## Limites et plan B
 
