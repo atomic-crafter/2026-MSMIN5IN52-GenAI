@@ -82,7 +82,16 @@ Extrait de film anglais de 76 s (41 segments), traduit en français, **un seul e
 
 - *Avant correction* : la mesure a révélé que Kokoro ajoute ~0,37 s de silence en tête de chaque réplique, soit un retard systématique ; `dubbing.py` supprime désormais ce silence.
 - Le WER aller-retour mesure l'intelligibilité de la voix de synthèse, pas la qualité de la transcription : la référence est le texte traduit, pas une transcription humaine. Le pipeline actuel est **moins intelligible** que la baseline : accélérer et tronquer les répliques pour tenir dans le temps coupe des mots. Compromis à discuter.
-- **Erreur de diarisation : non mesurée.** Aucun locuteur de référence n'est disponible, et sur cet extrait le pipeline n'a détecté qu'un seul locuteur (`SPEAKER_00`) alors que la scène en contient plusieurs et que 2 étaient demandés : le doublage multi-voix n'est donc pas exercé sur cet extrait.
+- **Erreur de diarisation (DER)**, mesurée sur 4 fichiers de VoxConverse (2 à 4 locuteurs, 106 à 260 s, annotations CC BY 4.0, audio non versionné) avec `python -m evaluation.bench_diarization` (pyannote 3.1, nombre de locuteurs inconnu / connu) :
+
+  | Réglage | DER moyen (inconnu) | DER moyen (nb. connu) |
+  |---|---|---|
+  | pyannote par défaut | 0,087 | 0,085 |
+  | réglage projet, sensibilité 2 (défaut de l'interface) | **0,075** | **0,063** |
+  | réglage projet, sensibilité 4 | 0,151 | 0,123 |
+
+  La sensibilité 4 sépare trop (jusqu'à 9 locuteurs détectés pour 3 réels) : à éviter. Sur un seul fichier (`sldwj`), `min_cluster_size=4` fait passer le DER de 0,154 à 0,053 ; sur les trois autres il ne change rien.
+- **Pourquoi l'extrait de film n'a qu'un seul locuteur :** ce n'est pas un problème de SRT (le SRT reprend l'étiquette donnée par pyannote). Avec sensibilité 4 et 2 locuteurs demandés, pyannote attribue 51 s à un locuteur et 2 s à l'autre. Avec les autres réglages testés, les étiquettes se répartissent en blocs temporels (7 répliques de `0`, puis 13 de `1`) alors que la scène est un échange rapide : pyannote ne sépare pas ces voix (voix de jeunes femmes proches, mélange film avec musique et bruitages). Aucun réglage testé n'est validé sur cet extrait, faute d'annotation de référence. Pour démontrer le doublage multi-voix, utiliser un enregistrement aux voix plus distinctes (entretien, podcast).
 - **Écoute à l'aveugle : non réalisée** (le dépouillement est prêt, il manque les auditeurs).
 
 ## Limites et plan B

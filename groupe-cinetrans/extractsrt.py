@@ -25,6 +25,8 @@ import whisperx
 from whisperx.diarize import DiarizationPipeline
 from transformers import pipeline as hf_pipeline
 
+from diarization_tuning import MIN_CLUSTER_SIZE, SPEAKER_THRESHOLDS, tune_diarizer  # noqa: F401
+
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "large-v3")  # tiny, base, small, medium, large-v3-turbo, large-v3
 # faster-whisper 1.0.0 (imposé par whisperx 3.2.0) ne connaît pas "large-v3-turbo" : on passe par le dépôt CT2.
 WHISPER_ALIASES = {"large-v3-turbo": "deepdml/faster-whisper-large-v3-turbo-ct2"}
@@ -38,11 +40,6 @@ EMOTION_LABELS = {  # harmonise les étiquettes entre modèles
     "neu": "neutral", "hap": "happy", "ang": "angry", "fear": "fearful",
     "surprise": "surprised",
 }
-# Sensibilité de séparation des voix (1 = fusionne plus, 5 = sépare plus) -> seuil de clustering
-SPEAKER_THRESHOLDS = {1: 0.85, 2: 0.70, 3: 0.58, 4: 0.46, 5: 0.35}
-# pyannote 3.1 fixe min_cluster_size=12 (pensé pour de longs enregistrements) : sur un dialogue
-# court, une voix qui parle peu est absorbée par la plus bavarde. On l'abaisse.
-MIN_CLUSTER_SIZE = 4
 HF_TOKEN = os.getenv("HF_TOKEN")
 SAMPLE_RATE = 16000
 MIN_EMOTION_SECONDS = 0.5  # en dessous, le modèle d'émotion n'est pas fiable
@@ -128,17 +125,6 @@ def transcribe_multilingual(model, audio, aligner):
             s["language"] = last_language
         segments.extend(sub)
     return segments
-
-
-def tune_diarizer(pipe, sensitivity):
-    """Ajuste le clustering de pyannote (seuil + taille minimale de cluster)."""
-    try:
-        params = pipe.parameters(instantiated=True)
-        params["clustering"]["threshold"] = SPEAKER_THRESHOLDS[sensitivity]
-        params["clustering"]["min_cluster_size"] = MIN_CLUSTER_SIZE
-        pipe.instantiate(params)
-    except Exception as e:  # ne jamais bloquer le traitement pour un réglage
-        print(f"  (réglage de la diarisation ignoré : {e})")
 
 
 def split_by_speaker(segments, min_words=2):
