@@ -1,0 +1,42 @@
+# `docker compose up --build`  puis ouvrir http://localhost:8000  (Windows, macOS, Linux)
+# `docker compose --profile cli run --rm transcribe` -> pipeline en ligne de commande
+# `docker compose --profile cli run --rm translate`   -> traduction des segments
+# `docker compose --profile cli run --rm dubbing`     -> synthèse vocale + vidéo doublée
+services:
+  web:
+    build: .
+    env_file: .env
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - .:/app
+      - model-cache:/root/.cache
+    command: python app.py
+
+  transcribe:
+    build: .
+    profiles: ["cli"]
+    env_file: .env
+    volumes:
+      - .:/app
+      - model-cache:/root/.cache
+    command: python extractsrt.py --out-dir outputs
+
+  translate:
+    build: .
+    profiles: ["cli"]
+    env_file: .env
+    volumes:
+      - .:/app
+    command: python translate_json.py
+
+  dubbing:
+    build: .
+    profiles: ["cli"]
+    env_file: .env
+    volumes:
+      - .:/app
+    command: python dubbing.py
+
+volumes:
+  model-cache:

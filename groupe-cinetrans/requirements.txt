@@ -1,0 +1,19 @@
+# Ajoutez ici les bibliothèques Python du projet (une par ligne), puis : docker compose build
+--extra-index-url https://download.pytorch.org/whl/cpu
+whisperx==3.2.0
+pyannote.audio>=3.1
+torch<2.9
+torchaudio<2.9
+omegaconf
+transformers>=4.35,<4.40
+ffmpeg-python
+flask
+matplotlib
+# Dubbing pipeline (Kokoro TTS)
+av==11.*
+pykokoro
+librosa
+numpy<2
+soundfile
+nltk
+kokorog2p[zh]
