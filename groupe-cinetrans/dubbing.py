@@ -141,6 +141,16 @@ def get_segment(items, lang, speed=1.0):
     return rendered_results
 
 
+def trim_silence(audio, threshold_db=-40.0, keep=0.02):
+    """Retire le silence de début et de fin (Kokoro ajoute ~0,3 s en tête, ce qui décale chaque réplique)."""
+    peak = float(np.max(np.abs(audio))) if len(audio) else 0.0
+    if peak == 0.0:
+        return audio
+    idx = np.flatnonzero(np.abs(audio) > peak * 10 ** (threshold_db / 20))
+    pad = int(keep * SR)
+    return audio[max(idx[0] - pad, 0): idx[-1] + pad + 1]
+
+
 def get_max_lengths(segments, total_duration):
     """Durée maximale autorisée par segment."""
     max_lengths = []
@@ -165,7 +175,7 @@ def fit_audios(items, audios, limits):
         new_audios = get_segment([items[i] for i in indices],
                                  lang=items[0]["language"], speed=speed)
         for i, new_aud in zip(indices, new_audios):
-            audios[i] = new_aud
+            audios[i] = trim_silence(new_aud)
 
     fade = int(0.03 * SR)
     for i, audio in enumerate(audios):
@@ -202,6 +212,8 @@ def main():
     ap.add_argument("input_json", help="JSON de segments (produit par translate_json.py)")
     ap.add_argument("--output-dir", "-o", default=None, help="dossier de sortie")
     ap.add_argument("--video", "-v", default=None, help="chemin vidéo (si pas dans le JSON)")
+    ap.add_argument("--baseline", action="store_true",
+                    help="baseline d'évaluation : une seule voix, aucun ajustement de durée")
     args = ap.parse_args()
 
     info = load_json(args.input_json)
@@ -211,23 +223,33 @@ def main():
     for langue in info["languages"]:
         print(f"\n=== Dubbing [{langue}] ===")
         speakers = get_speaker(info["segments"], langue)
+        if args.baseline:
+            first_voice = VOICES.get(LANG_MAP.get(langue, "en-us"), VOICES["en-us"])[0]
+            speakers = {spk: first_voice for spk in speakers}
         items = create_items(info["segments"], voice_map=speakers, lang=langue)
         print(f"  {len(items)} segments à synthétiser...")
 
-        audios = get_segment(items=items, lang=LANG_MAP.get(langue, "en-us"))
+        audios = [trim_silence(a) for a in get_segment(items=items, lang=LANG_MAP.get(langue, "en-us"))]
         max_lengths = get_max_lengths(info["segments"], get_video_duration(video_path))
-        audios = fit_audios(items=items, audios=audios, limits=max_lengths)
+        if not args.baseline:
+            audios = fit_audios(items=items, audios=audios, limits=max_lengths)
         track = build_track(segments=info["segments"], audios=audios,
                             total_duration=get_video_duration(video_path))
 
         out_dir = Path(args.output_dir) if args.output_dir else base_dir
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        wav_name = out_dir / f"{langue}.wav"
+        suffix = "_baseline" if args.baseline else ""
+        # Durées réellement placées : permet de mesurer débordements et chevauchements (evaluate.py timing --placed)
+        placed = [{"start": seg["start"], "end": seg["start"] + len(a) / SR}
+                  for seg, a in zip(info["segments"], audios)]
+        (out_dir / f"{langue}{suffix}.placed.json").write_text(json.dumps(placed), encoding="utf-8")
+
+        wav_name = out_dir / f"{langue}{suffix}.wav"
         sf.write(str(wav_name), track, SR)
         print(f"  Audio écrit : {wav_name}")
 
-        new_video = out_dir / f"{langue}.mp4"
+        new_video = out_dir / f"{langue}{suffix}.mp4"
         mux(video_path, wav_name, new_video)
         print(f"  Vidéo doublée : {new_video}")
 
