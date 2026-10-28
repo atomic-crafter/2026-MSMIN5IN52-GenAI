@@ -96,7 +96,26 @@ Extrait de film anglais de 76 s (41 segments), traduit en français, **un seul e
 
 ## Limites et plan B
 
-À compléter. Plan B prévu par le catalogue : TTS local Kokoro et extrait libre.
+**Limites connues**
+
+- **Diarisation sur du contenu difficile :** sur un extrait de film (voix proches, musique), pyannote ne sépare pas les locuteurs ; le doublage multi-voix n'est démontré que si les voix sont nettement distinctes (voir les mesures ci-dessus).
+- **Intelligibilité contre synchronisation :** accélérer (jusqu'à ×1,4) puis tronquer une réplique pour qu'elle tienne dans son créneau supprime les chevauchements mais coupe des mots (WER aller-retour 0,19 contre 0,11 pour la baseline).
+- **Évaluation limitée :** un seul extrait pour le timing et le WER, quatre fichiers pour le DER ; le WER a pour référence le texte traduit et non une transcription humaine ; l'écoute à l'aveugle n'a pas été réalisée.
+- **Voix par langue :** Kokoro fournit 1 à 4 voix par langue ; au-delà, les locuteurs se partagent les voix. Pour certaines langues (coréen, thaï, tchèque, suédois, russe, vietnamien), `dubbing.py` utilise des voix d'une autre langue : qualité non validée.
+- **Dépendances externes :** jeton Hugging Face et acceptation des conditions des modèles pyannote (voir `HUGGINGFACE_TOKEN.md`) ; traduction par une API LLM compatible OpenAI (`OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, modèle par défaut `deepseek/deepseek-v4.1-flash`). Le coût de la traduction n'a pas été mesuré.
+- **Performances :** pensé pour le CPU (image Docker `torch` CPU) ; la transcription avec un grand modèle Whisper et la diarisation prennent plusieurs minutes pour un extrait de 3 à 5 minutes. Hors Docker, `espeak-ng` doit être installé pour Kokoro.
+- **Qualité de la traduction non mesurée :** seul le texte est vérifié indirectement (WER aller-retour).
+
+**Plan B**
+
+- **Sans API de traduction :** lancer uniquement le doublage sur un JSON déjà traduit (`docker compose --profile cli run --rm dubbing`, ou `python dubbing.py segment_fr.json --video <vidéo>`). Kokoro tourne en local, sans réseau une fois les modèles téléchargés.
+- **Sans jeton Hugging Face ou si la diarisation échoue :** repartir d'un JSON de segments déjà produit ; ou forcer le nombre de locuteurs (`--num-speakers`) en sensibilité 2.
+- **Si la démonstration en direct échoue :** montrer une vidéo doublée générée à l'avance (conservée hors dépôt) et les commandes d'évaluation (`python evaluate.py …`), qui ne demandent ni modèle ni réseau pour `timing`, `wer` et `der`.
+- **Média :** extrait libre de droits (entretien à deux voix distinctes) placé dans `videos/`, jamais versionné.
+
+## Slides
+
+Les slides de soutenance sont dans `Présentation_ia_générative.pdf`.
 
 ## Répartition du travail
 
@@ -106,4 +125,19 @@ Des parties du code ont été écrites avec l'aide d'un agent de code (Claude Co
 
 ## Licence et références
 
-Code : à préciser. Modèles : WhisperX / Whisper, pyannote.audio (conditions d'accès Hugging Face), Kokoro. Aucun média commercial n'est versionné.
+**Code du groupe :** licence MIT du dépôt (`LICENSE` à la racine).
+
+| Composant | Rôle | Licence |
+|---|---|---|
+| Whisper / faster-whisper | transcription | MIT |
+| WhisperX | alignement et orchestration | BSD-2-Clause |
+| pyannote.audio et pipeline `speaker-diarization-3.1` | diarisation | MIT ; modèles à accès restreint (conditions à accepter sur Hugging Face) |
+| Kokoro (poids), `pykokoro`, `kokorog2p` | synthèse vocale | Apache-2.0 |
+| `superb/wav2vec2-base-superb-er`, `ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition` | émotions | voir leur fiche Hugging Face |
+| Flask | interface web | BSD-3-Clause |
+| LLM de traduction via OpenRouter | traduction | conditions du fournisseur et du modèle |
+| VoxConverse | évaluation de la diarisation | annotations CC BY 4.0 ; audio issu de YouTube, non redistribué |
+
+Les licences ci-dessus sont celles indiquées par les projets ; celles de Whisper, WhisperX, pyannote et VoxConverse sont à revérifier sur leur dépôt avant toute réutilisation. Aucun média commercial n'est versionné ; l'extrait de film utilisé pour les mesures reste local.
+
+**Références :** [Whisper](https://github.com/openai/whisper) · [WhisperX](https://github.com/m-bain/whisperX) · [pyannote.audio](https://github.com/pyannote/pyannote-audio) · [Kokoro](https://github.com/hexgrad/kokoro) · [VoxConverse](https://www.robots.ox.ac.uk/~vgg/data/voxconverse/)
